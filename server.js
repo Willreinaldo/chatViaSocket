@@ -2,10 +2,10 @@ const net = require('net');
 
 const clients = new Map();  // Armazena os clientes com seus sockets
 
-// Função para broadcast de mensagem para todos os clientes
-function broadcastMessage(message, sender) {
-    clients.forEach((socket, nickname) => {
-        if (nickname !== sender) {
+// Função para broadcast de mensagem para todos os clientes, exceto o remetente
+function broadcastMessage(message, senderSocket) {
+    clients.forEach((socket) => {
+        if (socket !== senderSocket) {  // Evita que o remetente receba a própria mensagem
             socket.write(message);
         }
     });
@@ -24,24 +24,26 @@ const server = net.createServer((socket) => {
             if (!nickname) {
                 socket.write('You must provide a nickname!\n');
                 socket.end();
+            } else if (clients.has(nickname)) {
+                socket.write('This nickname is already in use.\n');
             } else {
                 clients.set(nickname, socket);
                 const users = Array.from(clients.keys()).join(' ');
                 socket.write(`!users ${clients.size} ${users}\n`);
-                broadcastMessage(`!msg ${nickname} entrou no chat.\n`, nickname);
+                broadcastMessage(`!msg ${nickname} has joined the chat.\n`, socket);
             }
         } else if (!nickname) {
             socket.write('Please set a nickname using !nick <nickname>\n');
             socket.end();
         } else if (message.startsWith('!sendmsg')) {
             const msgText = message.replace('!sendmsg ', '');
-            broadcastMessage(`!msg ${nickname} ${msgText}\n`, nickname);
+            broadcastMessage(`!msg ${nickname} ${msgText}\n`, socket);
         } else if (message.startsWith('!changenickname')) {
             const newNickname = message.split(' ')[1];
             if (clients.has(newNickname)) {
                 socket.write('This nickname is already in use.\n');
             } else {
-                broadcastMessage(`!changenickname ${nickname} ${newNickname}\n`, nickname);
+                broadcastMessage(`!changenickname ${nickname} ${newNickname}\n`, socket);
                 clients.delete(nickname);
                 clients.set(newNickname, socket);
                 nickname = newNickname;
@@ -49,7 +51,9 @@ const server = net.createServer((socket) => {
         } else if (message.startsWith('!poke')) {
             const pokeTarget = message.split(' ')[1];
             if (clients.has(pokeTarget)) {
-                broadcastMessage(`!poke ${nickname} ${pokeTarget}\n`, nickname);
+                const pokeMessage = `!poke ${nickname}-poker ${pokeTarget}-poked\n`;
+                broadcastMessage(pokeMessage, socket);
+                clients.get(pokeTarget).write(`!poke ${nickname}-poker ${pokeTarget}-poked\n`);
             } else {
                 socket.write('User not found.\n');
             }
@@ -59,8 +63,10 @@ const server = net.createServer((socket) => {
     });
 
     socket.on('end', () => {
-        clients.delete(nickname);
-        broadcastMessage(`!msg ${nickname} saiu do chat.\n`, nickname);
+        if (nickname) {
+            clients.delete(nickname);
+            broadcastMessage(`!left ${nickname}-has-left\n`, socket);
+        }
     });
 
     socket.on('error', (err) => {
@@ -68,7 +74,7 @@ const server = net.createServer((socket) => {
     });
 });
 
-const port = 3000;  // Porta escolhida
+const port = 3000;   
 server.listen(port, () => {
     console.log(`Server listening on port ${port}`);
 });
