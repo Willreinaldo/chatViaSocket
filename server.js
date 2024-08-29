@@ -1,8 +1,7 @@
 const net = require('net');
 
-const clients = new Map();  // Armazena os clientes com seus sockets
+const clients = new Map();
 
-// Função para broadcast de mensagem para todos os clientes
 function broadcastMessage(message, sender) {
     clients.forEach((socket, nickname) => {
         if (nickname !== sender) {
@@ -11,14 +10,12 @@ function broadcastMessage(message, sender) {
     });
 }
 
-// Criação do servidor
 const server = net.createServer((socket) => {
     let nickname = '';
 
     socket.on('data', (data) => {
         const message = data.toString().trim();
 
-        // Primeiro comando deve ser para definir o nickname
         if (message.startsWith('!nick')) {
             nickname = message.split(' ')[1];
             if (!nickname) {
@@ -68,7 +65,7 @@ const server = net.createServer((socket) => {
     });
 });
 
-const port = 3000;  // Porta escolhida
+const port = 3000;
 server.listen(port, () => {
     console.log(`Server listening on port ${port}`);
 });
